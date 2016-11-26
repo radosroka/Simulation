@@ -19,6 +19,7 @@ Vygenerujeme zoznam domov do poľa, nastvime parametre a necháme auta zviest ek
 
 Počas presunov alebo aj zberov može dojsť k poruche, každé vozidlo ma vlasný generátor porúch. Kt. bude vyžadovat prioritnú obsluhu => vrátenie odpadu k domu uvolnenie zariadenia a následne spustí prioritný proces opravy.
 
+#### UPDATE see code
 ### Entity vystupujúce v modely
 Nasledúje výčet možných entit a ich vlastností figurujúcich v modele
 #### Auto - proces
