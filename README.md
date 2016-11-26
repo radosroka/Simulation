@@ -13,6 +13,10 @@ Obslužná sieť predstavujúca model mestskej časti može byť reprezentovaná
 ### Obslužná siet pomocou grafu orientovaného/neorientovaného, hranového/uzlového 
 Realnejší model by sa dal vytvoriť pomocou uzlov - križovatiek a hrán - ciest. V rámci uzlov by boli značené cesty kt. možno navšťíviť a v rámci hrán uzly kam sa je možné dostať, dĺžka cesty a množina domov kt. treba obslúžiť. Tento presnejší model je algoritmicky náročnejší. V prípade orientovaného grafu je treba dávať pozor na uviaznutie auta v slepej uličke, alebo skor zabezpečiť ze k takému prípadu nedôjde. 
 
+### Dont fuck around obslužná sieť
+Vygenerujeme zoznam domov do poľa, nastvime parametre a necháme auta zviest ekvivalentné časti. A nebudeme sa babrat so zložitými algoritmami, kt. nemusime stihnúť. 
+
+
 Počas presunov alebo aj zberov može dojsť k poruche, každé vozidlo ma vlasný generátor porúch. Kt. bude vyžadovat prioritnú obsluhu => vrátenie odpadu k domu uvolnenie zariadenia a následne spustí prioritný proces opravy.
 
 ### Entity vystupujúce v modely
