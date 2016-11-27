@@ -59,3 +59,20 @@ Kapacita
 Zaplnenie
 Produkcia per day 
 
+### Český štatistický úrad
+
+Pre Brno-mesto
+
+Rozloha: 230.22 km^2
+Počet obyvateľov 377 028
+Počet domácností
+Rozloha
+
+Statistika odpadov
+https://www.czso.cz/documents/11256/49147777/odpad+2015.pdf/a3fabc5e-3fe1-4805-8849-f5ea143a1d46?redirect=https%3A%2F%2Fwww.czso.cz%2Fweb%2Fczso%2F404-%3Fp_p_id%3D3%26p_p_lifecycle%3D0%26p_p_state%3Dmaximized%26p_p_mode%3Dview%26_3_groupId%3D0%26_3_keywords%3Dodpady%26_3_struts_action%3D%252Fsearch%252Fsearch%26_3_redirect%3D%252Fweb%252Fczso%252F404-
+
+Počty domácností
+https://vdb.czso.cz/vdbvo2/faces/cs/index.jsf?page=vystup-objekt&z=T&f=TABULKA&pvoch=3115&pvo=SLDB-ZAKL-KRAJE-kraje&pvokc=100&katalog=30261&str=v98&rouska=true&clsp=null
+
+Počty ľudí
+https://vdb.czso.cz/vdbvo2/faces/cs/index.jsf?page=vystup-objekt&pvo=SLDB-ZAKL-KRAJE-kraje&z=T&f=TABULKA&katalog=30261&pvokc=100&pvoch=3115
