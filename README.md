@@ -8,15 +8,15 @@ Zvolte si část území ČR (část města, vesnice) obsahující obydlené a p
 ## Návrh
 
 ### Obslužná sieť pomocou stromu
-Obslužná sieť predstavujúca model mestskej časti može byť reprezentovaná buď zjednodušene a pomocou stromov, kde listy budu reprezentovať zjednodušené množiny ulíc kde bude zber prebiehať na sume domov, počet domov bude udávať počet zastavení pri nádobách. V rámci jednej sekcie by boli pri každom dome rovnaké stredné hodnoty generovania odpadu a presunu zberacieho auta medzi domami. Prechod grafom po vážených hranách by simloval presuny medzi časťami. Nevýhodou je nepresnosť tohoto modelu. Cesty na úrovni ulíc nebudú modelované. To by sa dalo zlepšiť zvýšením granulatiry z časťí na ulice.
+Obslužná sieť predstavujúca model mestskej časti može byť reprezentovaná buď zjednodušene a pomocou stromov, kde listy budu reprezentovať zjednodušené množiny ulíc v ktorých bude zber prebiehať na sume domov, počet domov bude udávať počet zastavení pri nádobách. V rámci jednej sekcie by boli objemy produkcie a doby presunu zberacieho auta medzi domami rovnaké. Prechod grafom po vážených hranách by simloval presuny medzi časťami. Nevýhodou je nepresnosť tohoto modelu. Presné polohy ulíc nebudú modelované. To by sa dalo zlepšiť zvýšením granulatiry z časťí na ulice. Výhodou by bolo možnosť zistiť v kt častiach mesta dochádza k hormadeniu
 
 ### Obslužná siet pomocou grafu orientovaného/neorientovaného, hranového/uzlového 
-Realnejší model by sa dal vytvoriť pomocou uzlov - križovatiek a hrán - ciest. V rámci uzlov by boli značené cesty kt. možno navšťíviť a v rámci hrán uzly kam sa je možné dostať, dĺžka cesty a množina domov kt. treba obslúžiť. Tento presnejší model je algoritmicky náročnejší. V prípade orientovaného grafu je treba dávať pozor na uviaznutie auta v slepej uličke, alebo skor zabezpečiť ze k takému prípadu nedôjde. 
+Realnejší model by sa dal vytvoriť pomocou uzlov - križovatiek a hrán - ciest. V rámci uzlov by boli značené cesty kt. možno navšťíviť a v rámci hrán uzly kam sa je možné dostať, dĺžka cesty a množina domov kt. treba obslúžiť. Tento presnejší model je algoritmicky náročnejší. V prípade orientovaného grafu je treba dávať pozor na uviaznutie auta v slepej uličke, alebo skor zabezpečiť ze k takému prípadu nedôjde. Zbytočne to komplikuje simuláciu, ale pokiaľ by bolo treba modelovať logistiku bola by to zaujimavá varianta.
 
-### Dont fuck around obslužná sieť
-Vygenerujeme zoznam domov do poľa, nastvime parametre a necháme auta zviest ekvivalentné časti. A nebudeme sa babrat so zložitými algoritmami, kt. nemusime stihnúť. 
+### Obslužná siet pomocou parametrizácie lokality
+Zadaný je počet domov a celková dľžka ulíc, z toho sa spočita stredná doba presunu medzi zbermi a počty domov sa rozdelia medzi auta. Odhadne sa cas pre presun z depa do mesta, z mesta na skládku, doba nakladania odpadu, doba vykladania odpadu. V prípade ze by auta nestihli zviezt odpad z x domov, v nasledujucom tyzdni odnásaju dvojnásobok odpadu z x domov. Pre túto variantu je treba získať štatistiky aby bol model realistický.
 
-
+#### Možné zahrnúť
 Počas presunov alebo aj zberov može dojsť k poruche, každé vozidlo ma vlasný generátor porúch. Kt. bude vyžadovat prioritnú obsluhu => vrátenie odpadu k domu uvolnenie zariadenia a následne spustí prioritný proces opravy.
 
 #### UPDATE see code
@@ -59,4 +59,3 @@ Kapacita
 Zaplnenie
 Produkcia per day 
 
-Je treba neajako zabezpečiť optimálnu obsluhu. Buď pomocou zberových plánov, s vyhľadávaním optimálnych ciest alebo nejako, to ešte neviem ako spravit. Napada ma tiez vytvoriť kostru na začiatku a prechádzat len po nej. 

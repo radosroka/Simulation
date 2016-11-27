@@ -5,9 +5,7 @@
 //               SIMLIB/C++
 //
 
-#include <vector>
 #include <string>
-#include <set>
 #include <simlib.h>
 
 using namespace std;
@@ -17,24 +15,30 @@ const int HOUSE_PROD = 70; //Litrov odpadu za tyzden na dom
 const int FACT_PROD = 1000; 
 
 // Truck default settings
-const int TRUCK_CAP = 1000;
-const int UNLOAD = 600;
-const int SERVICE = 30;
+const int TRUCK_CAP = 3000;
+const int UNLOAD = 600; // Time to unload the car
+const int SERVICE = 30; // Time to load a trash can
 
 // Distance delays in seconds
-const int MOVE_COLLECT = 60;
-const int MOVE_DEPO = 60;
-const int MOVE_STOR = 60;
+const int MOVE_COLLECT = 60; // Time delay between houses
+const int MOVE_DEPO = 120; // Time delay to depo
+const int MOVE_STOR = 300; // Time delay to landfill
 
 // Network size
 const int HOUSES = 10000;
 const int FACTORIES = 10;
 
 // Number of trucks available
-int TRUCK_N = 3;
+int TRUCK_N = 4;
 
+// Flag for work shift
 int work;
+double day_start;
+
 class Store Landfill;
+TStat Gath;
+Stat FieldHours;
+Stat Dist;
 
 // Class describing act of collecting garbage from houses
 // Code mode profi ;)
@@ -47,9 +51,10 @@ class Truck : public Process {
 
 	int capacity;
 	int remaining;
+	int unattended;
 
 	void Behavior() {
-
+		//Implemented as state automaton
 		while(1) {
 			switch (state) {
 
@@ -58,9 +63,11 @@ class Truck : public Process {
 				if (work) {
 					// If it is daytime
 					if (remaining > 0) {
-						// And houses not cleared
+						//TODO: prerobit na Store
+						// And houses not cleared, compensate if ungathered houses
 						Wait(SERVICE);
-						garbage += Exponential(HOUSE_PROD);
+						garbage += Exponential(
+									(!unattended ? HOUSE_PROD : HOUSE_PROD*2, unattended--));
 						remaining--;
 
 						if (garbage > capacity)	{
@@ -89,6 +96,7 @@ class Truck : public Process {
 
 				// Wait for another work shift in depo
 				Wait(Exponential(MOVE_DEPO));
+				FieldHours((Time - day_start)/3600);
 				Passivate();
 				break;
 
@@ -109,6 +117,7 @@ class Truck : public Process {
 				Wait(Exponential(MOVE_DEPO));
 				// Restart state;
 				//state = collecting;
+				FieldHours((Time-day_start)/3600);
 				Passivate();
 				break;
 			}
@@ -119,8 +128,12 @@ class Truck : public Process {
 public:
 	int garbage;
 
+	int GetRemaining() { return remaining; }
+
 	void SetWeekly(int houses)
 	{
+		// Remember uncollected houses
+		unattended = remaining;
 		remaining = houses;
 		state = collecting;
 	}
@@ -128,6 +141,7 @@ public:
 	Truck(int cap = TRUCK_CAP)
 	{
 		capacity = cap;
+		unattended = 0;
 		state = collecting;
 	}
 
@@ -138,29 +152,35 @@ class Dispatcher : public Event {
 		new_window = 0,
 		work_shift,
 		rest
-	} next_state = new_window;
+	} next_state;
 
 	class Truck* cars;
 	int day = 0;
+	int cleaned = 0;
+	int perDay = 0;
 
 	void Behavior() {
 
 		switch (next_state) {
-
+		default:
 		case new_window:
-				for (int x = 0; x < TRUCK_N; x++)
-					// Set quantities and prepare trucks
-					cars[x].SetWeekly(HOUSES/x);
+
+			for (int x = 0; x < TRUCK_N; x++)
+				// Set quantities and prepare trucks
+				cars[x].SetWeekly(HOUSES/TRUCK_N);
+
 
 		case work_shift:
 
-				for (int x = 0; x < TRUCK_N; x++)
-					// Modulate dispatch time
-					cars[x].Activate(Time + Exponential(MOVE_DEPO));
+			for (int x = 0; x < TRUCK_N; x++)
+				// Modulate dispatch time
+				cars[x].Activate(Time + Exponential(MOVE_DEPO));
 
-				next_state = rest;
-				work = Work();
-				Activate(Time + 8 * 3600);
+			next_state = rest;
+			work = Work();
+			day_start = Time;
+			Activate(Time + 8 * 3600);
+			break;
 
 		case rest:
 			day++;
@@ -171,6 +191,14 @@ class Dispatcher : public Event {
 				next_state = new_window;
 			}
 			work = Work();
+
+			for (int x = 0; x < TRUCK_N; x++)
+				perDay = + cars[x].GetRemaining();
+
+			perDay = (HOUSES - cleaned) - perDay;
+			//Log houses served per Day per Truck
+			Gath(perDay / TRUCK_N);
+
 			Activate(Time + 16 * 3600);
 		}
 	}
@@ -179,6 +207,7 @@ public:
 	Dispatcher(int num = TRUCK_N, Priority_t pri = 0) : Event(pri)
 	{
 		cars = new Truck[num];
+		next_state = new_window;
 	}
 	~Dispatcher() {
 		delete[] cars;
@@ -187,10 +216,14 @@ public:
 
 class Dispatcher Depo;
 
-//TODO: Add statistics
 // popis experimentu s modelem
 int main() {
 	// DebugON();
+
+	Gath.Clear();
+	FieldHours.Clear();
+	FieldHours.SetName("Pracovnych hodin aut");
+	Gath.SetName("Pocet upratanych domov za den na auto");
 
 	Landfill.SetName("Skladka");
 	Landfill.SetCapacity(3);
@@ -199,7 +232,7 @@ int main() {
 	SetOutput("zvoz.out");
 
 	// inicializace experimentu, čas bude 0..2 tyzdne
-	Init(0,14*24*3600);
+	Init(0,70*24*3600);
 
 	// Release the hounds !
 	Depo.Activate();
@@ -207,6 +240,8 @@ int main() {
 	Run();
 
 	// Vypis statistiky
+	FieldHours.Output();
+	Gath.Output();
 	return 0;
 }
 
