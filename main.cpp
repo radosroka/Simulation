@@ -18,15 +18,15 @@ double plane_size = 230.22; //km squared
 int popluation = 377028; //people
 double garbage_k = 280; //Kg garbage per people/year
 double industry_k = 3635845000; //Kg per year total
-int houses = 174162; //Spread evenly across the city
-int factories = 10; //Spread evenly across the city
+int houses_n = 174162; //Spread evenly across the city
+int factories_n = 10; //Spread evenly across the city
 
 // Calculated from inputs
 // Garbage production
 float house_prod; //Kg odpadu za tyzden na dom
 float fact_prod;
 // Exponential distribution calculated on travel time avg_speed/avg_distance -> avg time
-int move_collect; //sec Distance between houses
+int move_collect; //sec Distance between houses_n
 int move_depo; //sec Distance to depo
 int move_stor; //sec Distance to landfill
 
@@ -50,16 +50,18 @@ int truck_n = 4;
 int work;
 double day_start;
 
-class Store Landfill;
-class Store Households;
+class Store landfill;
+class Store households;
+class Store missedHH;
+class Store factories;
 
 //TODO: add suitable statistics
-Histogram Gathh; //Garbage gathered per day
-TStat Gath;      //
-Stat FieldHours; //Find out utilisation of trucks
-Stat Dist;       //Accumulate distance travelled by trucks
+Histogram gathH; //Garbage gathered per day
+TStat gath;      //
+Stat fieldHours; //Find out utilisation of trucks
+Stat dist;       //Accumulate distance travelled by trucks
 
-// Class describing act of collecting garbage from houses
+// Class describing act of collecting garbage from houses_n
 // Code mode profi ;)
 class Truck : public Process {
 	enum {
@@ -69,9 +71,8 @@ class Truck : public Process {
 	} state;
 
 	int capacity;
-	int remaining;
-	int unattended;
-	double fuel;
+	int per_day;
+	double fuel; //Count somehow from travel time
 
 	void Behavior() {
 		//Implemented as state automaton
@@ -82,16 +83,25 @@ class Truck : public Process {
 
 				if (work) {
 					// If it is daytime
-					if (remaining > 0) {
-						//TODO: prerobit na Store, na jedno zastavenie mozno obsluzit viac domov 1,2-5 ?
+					//if (remaining > 0) {
+					if (households.Capacity() > 0) {
+						//TODO: na jedno zastavenie mozno obsluzit viac domov 1,2-5 ?
 						//TODO: prirobit fabriky
-						// And houses not cleared, compensate if ungathered houses
-						Wait(SERVICE);
-						garbage += Exponential(
-									(!unattended ? house_prod : house_prod*2, unattended--));
-						remaining--;
+						// And houses_n not cleared, compensate if ungathered houses_n
+						Enter(households, 1);
 
-						if (garbage > capacity)	{
+						Wait(SERVICE);
+
+						if (missedHH.Capacity() > 0 ) {
+							// Collect extra from last week
+							Enter(missedHH, 1);
+							garbage += Exponential(house_prod);
+						}
+						garbage += Exponential(house_prod);
+
+						per_day++;
+
+						if (garbage > capacity) {
 							// Go to landfill if +- full
 							state = storage;
 							break;
@@ -109,7 +119,7 @@ class Truck : public Process {
 					break;
 				}
 
-				if (!remaining) {
+				if (!households.Capacity()) {
 					// Go wait for next collecting window;
 					state = depo;
 					break;
@@ -117,7 +127,9 @@ class Truck : public Process {
 
 				// Wait for another work shift in depo
 				Wait(Exponential(move_depo));
-				FieldHours((Time - day_start)/3600);
+				fieldHours((Time - day_start)/3600);
+				gathH(per_day);
+				per_day = 0;
 				Passivate();
 				break;
 
@@ -125,10 +137,10 @@ class Truck : public Process {
 
 				Wait(Exponential(move_stor));
 
-				Enter(Landfill, 1);
+				Enter(landfill, 1);
 				Wait(UNLOAD);
 				garbage = 0;
-				Leave(Landfill, 1);
+				Leave(landfill, 1);
 
 				state = collecting;
 				break;
@@ -137,8 +149,10 @@ class Truck : public Process {
 
 				Wait(Exponential(move_depo));
 				// Restart state;
-				//state = collecting;
-				FieldHours((Time-day_start)/3600);
+				fieldHours((Time-day_start)/3600);
+				gathH(per_day);
+				per_day = 0;
+				state = collecting;
 				Passivate();
 				break;
 			}
@@ -150,20 +164,10 @@ public:
 	int garbage;
 	int odometer;
 
-	int GetRemaining() { return remaining; }
-
-	void SetWeekly(int houses)
-	{
-		// Remember uncollected houses
-		unattended = remaining;
-		remaining = houses;
-		state = collecting;
-	}
-
 	Truck(int cap = TRUCK_CAP)
 	{
 		capacity = cap;
-		unattended = 0;
+		per_day = 0;
 		state = collecting;
 	}
 
@@ -178,8 +182,6 @@ class Dispatcher : public Event {
 
 	class Truck* cars;
 	int day = 0;
-	int cleaned = 0;
-	int perDay = 0;
 
 	void Behavior() {
 		//TODO: Prirob fabriky
@@ -188,10 +190,8 @@ class Dispatcher : public Event {
 		default:
 		case new_window:
 
-			for (int x = 0; x < truck_n; x++)
-				// Set quantities and prepare trucks
-				cars[x].SetWeekly(houses/truck_n);
-
+			missedHH.SetCapacity(missedHH.Capacity()+households.Capacity());
+			households.SetCapacity(houses_n);
 
 		case work_shift:
 
@@ -214,13 +214,6 @@ class Dispatcher : public Event {
 				next_state = new_window;
 			}
 			work = Work();
-
-			for (int x = 0; x < truck_n; x++)
-				perDay = + cars[x].GetRemaining();
-
-			perDay = (houses - cleaned) - perDay;
-			//Log houses served per Day per Truck
-			Gath(perDay / truck_n);
 
 			Activate(Time + 16 * 3600);
 		}
@@ -253,8 +246,8 @@ void initParams(int argc, char* argv[])
 			{"city-size", required_argument, 0, 'c'},
 			{"person-production", required_argument, 0, 'p'},
 			{"industry-production", required_argument, 0, 'i'},
-			{"houses", required_argument, 0, 'u'},
-			{"factories", required_argument, 0, 't'},
+			{"houses_n", required_argument, 0, 'u'},
+			{"factories_n", required_argument, 0, 't'},
 			{"population", required_argument, 0, 'l'},
 			{0,0,0,0}
 	};
@@ -279,12 +272,12 @@ void initParams(int argc, char* argv[])
 		printf("\n");
 	}
 
-	int ds_houses = sqrt((plane_size*1000000)/houses); // metre Vzdialenost medzi domami
-	int ppl_per_house = popluation/houses;
+	int ds_houses = sqrt((plane_size*1000000)/houses_n); // metre Vzdialenost medzi domami
+	int ppl_per_house = popluation/houses_n;
 
 // Garbage production
 	house_prod = (ppl_per_house*garbage_k*7)/(365.25); // Kg odpadu za tyzden na dom - priemer
-	fact_prod = industry_k/(365.25*factories); // Kg odpadu za den na fabriku
+	fact_prod = industry_k/(365.25*factories_n); // Kg odpadu za den na fabriku
 
 // Distance delays in seconds
 	//TODO: Over statisticke vzidalenosti, predpokldame stvorcovu siet, mozme si to vobec dovolit ?
@@ -297,25 +290,26 @@ void initParams(int argc, char* argv[])
 
 // Popis experimentu s modelem
 int main(int argc, char* argv[]) {
-	// DebugON();
+	//DebugON();
 
-	Gath.Clear();
-	FieldHours.Clear();
-	Gathh.Clear();
-	FieldHours.SetName("Pracovnych hodin aut");
-	Gath.SetName("Pocet upratanych domov za den na auto");
+	gath.Clear();
+	fieldHours.Clear();
+	gathH.Clear();
+	fieldHours.SetName("Pracovnych hodin aut");
+	gathH.Init(500, 25, 20);
+	gathH.SetName("Pocet upratanych domov za den na auto");
 
-	Landfill.SetName("Skladka");
-	Landfill.SetCapacity(3);
-	Households.SetName("Domacnosti");
-	Households.SetCapacity(houses);
+	landfill.SetName("Skladka");
+	landfill.SetCapacity(3);
+	households.SetName("Domacnosti");
+	households.SetCapacity(houses_n);
 
 
 	Print("Brno-mesto -- SHO zvoz odpadu SIMLIB/C++\n");
 	SetOutput("zvoz.out");
 
 	// inicializace experimentu, čas bude 0..2 tyzdne...
-	Init(0,70*24*3600); //10 tyzdnov
+	Init(0,3*24*3600); //10 tyzdnov
 
 	//initParams(argc, argv);
 	// Release the hounds !
@@ -325,8 +319,12 @@ int main(int argc, char* argv[]) {
 	Run();
 
 	// Vypis statistiky
-	FieldHours.Output();
-	Gath.Output();
+	households.Output();
+	missedHH.Output();
+	landfill.Output();
+
+	fieldHours.Output();
+	gathH.Output();
 	return 0;
 }
 
