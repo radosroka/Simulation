@@ -5,13 +5,24 @@
 //               SIMLIB/C++
 //
 
+#include <iostream>
 #include <string>
 #include <simlib.h>
 #include <cmath>
 #include <getopt.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 using namespace std;
+
+const string HELP_MESSAGE = "help, no_argument, 0, h\n"
+			"output-file, required_argument, 0, f\n"
+			"city-size, required_argument, 0, c\n"
+			"person-production, required_argument, 0, p\n"
+			"industry-production, required_argument, 0, i\n"
+			"houses_n, required_argument, 0, u\n"
+			"factories_n, required_argument, 0, t\n"
+			"population, required_argument, 0, l\n";
 
 // Simulation inputs //defaults
 double plane_size = 230.22; //km squared
@@ -42,6 +53,8 @@ const int TRUCK_MAX_SPEED = 90/3.6; //Meters/sec
 
 // Variables
 int truck_n = 17;
+
+string outputfile;
 
 // Optimize function
 // TODO: Check how simulating works
@@ -289,7 +302,7 @@ class Dispatcher Depo;
 
 // Spocitaj simulacne parametre
 // TODO: Rado, urobi spracovanie parametrov
-void initParams(int argc, char* argv[])
+int initParams(int argc, char* argv[])
 {
 	int c;
 	//int digit_optind = 0;
@@ -310,21 +323,90 @@ void initParams(int argc, char* argv[])
 	while(1) {
 		//int this_option_optind = optind ? optind : 1;
 		int option_index = 0;
+		string tmp;
+		size_t idx = 0;
 
 		c = getopt_long(argc, argv, "ho:c:p:i:u:t:l:", long_options, &option_index);
 		if (c == -1) break;
 		switch (c) {
 		//TODO: fill cases
-		default:
-			printf("?? getopt returned character code 0%o ??\n", c);
+			case 'h':
+				cout << HELP_MESSAGE;
+				break;
+			case 'f':
+				outputfile = optarg;
+                SetOutput(outputfile.c_str());
+				break;
+			case 'c':
+				tmp = optarg;
+				try {
+					plane_size = stoll(tmp, &idx);
+					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
+				} catch (const std::invalid_argument& ia) {
+					Print("Error, city-size value is invalid!\n");
+					return EXIT_FAILURE;
+				}
+				break;
+			case 'p':
+				tmp = optarg;
+				try {
+					garbage_k = stod(tmp, &idx);
+					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
+				} catch (const std::invalid_argument& ia) {
+					Print("Error, person-production value is invalid!\n");
+					return EXIT_FAILURE;
+				}
+				break;
+			case 'i':
+				tmp = optarg;
+				try {
+					industry_k = stod(tmp, &idx);
+					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
+				} catch (const std::invalid_argument& ia) {
+					Print("Error, industry-production value is invalid!\n");
+					return EXIT_FAILURE;
+				}
+				break;
+			case 'u':
+				tmp = optarg;
+				try {
+					houses_n = stoll(tmp, &idx);
+					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
+				} catch (const std::invalid_argument& ia) {
+					Print("Error, houses_n value is invalid!\n");
+					return EXIT_FAILURE;
+				}
+				break;
+			case 't':
+				tmp = optarg;
+				try {
+					factories_n = stoll(tmp, &idx);
+					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
+				} catch (const std::invalid_argument& ia) {
+					Print("Error, factories_n value is invalid!\n");
+					return EXIT_FAILURE;
+				}
+				break;
+			case 'l':
+				tmp = optarg;
+				try {
+					population = stoll(tmp, &idx);
+					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
+				} catch (const std::invalid_argument& ia) {
+					Print("Error, population value is invalid!\n");
+					return EXIT_FAILURE;
+				}
+				break;
+			default:
+				Print("?? getopt returned character code 0%o ??\n", c);
 		}
 	}
 
 	if (optind < argc) {
-		printf("non-option ARGV-elements: ");
+		Print("non-option ARGV-elements: ");
 		while (optind < argc)
-			printf("%s ", argv[optind++]);
-		printf("\n");
+			Print("%s ", argv[optind++]);
+		Print("\n");
 	}
 
 	int ds_houses = sqrt((plane_size*1000000)/houses_n); // metre Vzdialenost medzi domami
@@ -342,6 +424,8 @@ void initParams(int argc, char* argv[])
 	// sec Priemerna vzdialenost k domom pokial je v strede mesta sqrt(((a/2)^2*2^0.5)/pi) = r, plocha ohranicena stvocom za kruznicou a pred kruznicou s polomerom r je rovnaka //for 20 should give result 9.488
 	move_depo = TRUCK_MAX_SPEED/(sqrt(((plane_size / 4) * sqrt(2)) / 3.1418)); //depo is in the middle of square
 	move_stor = TRUCK_MAX_SPEED/20000; // sec ?? nejake dalsia priemerna vzidalenost podobnym sposobom
+
+	return EXIT_SUCCESS;
 }
 
 void clean_stats()
@@ -354,6 +438,8 @@ void clean_stats()
 int main(int argc, char* argv[]) {
 	//DebugON();
 
+	if (initParams(argc, argv)) return EXIT_FAILURE;
+	
 	landfill.SetCapacity(3);
 	households.SetCapacity(houses_n);
 
