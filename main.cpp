@@ -326,7 +326,7 @@ int initParams(int argc, char* argv[])
 		string tmp;
 		size_t idx = 0;
 
-		c = getopt_long(argc, argv, "ho:c:p:i:u:t:l:", long_options, &option_index);
+		c = getopt_long(argc, argv, "hf:c:p:i:u:t:l:", long_options, &option_index);
 		if (c == -1) break;
 		switch (c) {
 		//TODO: fill cases
