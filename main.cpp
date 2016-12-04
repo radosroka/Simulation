@@ -63,6 +63,7 @@ Stat dist;       //Accumulate distance travelled by trucks
 
 // Class describing act of collecting garbage from houses_n
 // Code mode profi ;)
+
 class Truck : public Process {
 	enum {
 		depo,
@@ -157,7 +158,6 @@ class Truck : public Process {
 				break;
 			}
 		}
-
 	};
 
 public:
@@ -234,6 +234,7 @@ class Dispatcher Depo;
 
 
 // Spocitaj simulacne parametre
+// TODO: Rado, urobi spracovanie parametrov
 void initParams(int argc, char* argv[])
 {
 	int c;
@@ -281,10 +282,11 @@ void initParams(int argc, char* argv[])
 
 // Distance delays in seconds
 	//TODO: Over statisticke vzidalenosti, predpokldame stvorcovu siet, mozme si to vobec dovolit ?
+	//FIXME: Vypocet rozlozenia vzdialenosti
 	move_collect = TRUCK_AVG_SPEED/ds_houses; // sec plati priemer pri optimalnom presune !
 
 	// sec Priemerna vzdialenost k domom pokial je v strede mesta sqrt(((a/2)^2*2^0.5)/pi) = r, plocha ohranicena stvocom za kruznicou a pred kruznicou s polomerom r je rovnaka //for 20 should give result 9.488
-	move_depo = TRUCK_MAX_SPEED/(sqrt(((plane_size / 4) * sqrt(2)) / 3.1428)); //depo is in the middle of square
+	move_depo = TRUCK_MAX_SPEED/(sqrt(((plane_size / 4) * sqrt(2)) / 3.1418)); //depo is in the middle of square
 	move_stor = TRUCK_MAX_SPEED/20000; // sec ?? nejake dalsia priemerna vzidalenost podobnym sposobom
 }
 
