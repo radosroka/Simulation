@@ -11,10 +11,14 @@
 #include <cmath>
 #include <getopt.h>
 #include <unistd.h>
-#include <stdlib.h>
+#include <cstdlib>
+
+#include <vector>
+#include <map>
 
 using namespace std;
 
+// TODO: rado... srsly ?
 const string HELP_MESSAGE = "help, no_argument, 0, h\n"
 			"output-file, required_argument, 0, f\n"
 			"city-size, required_argument, 0, c\n"
@@ -63,8 +67,6 @@ string outputfile;
 int work;
 double day_start;
 
-//extern const double & Time;
-
 class Store landfill("Skladka info", 3);
 class Store households("Zariadenia produkujuce komunalny odpad", houses_n);
 //class Store missedHH();
@@ -75,9 +77,36 @@ Histogram gathH("Per day vybrane popelnice", 0, 100, 25); //Garbage gathered per
 TStat uncleaned("Per week neupratane domy");
 Histogram fieldHours("Pracovne hodiny vodicov", 0, 0.5, 20); //Find out utilisation of trucks
 Stat dist("Najazdene vzdialenosti");       //Accumulate distance travelled by trucks
+Stat unloads("Vahy vysypok na skladkach");
 
 // Class describing act of collecting garbage from houses_n
 // Code mode profi ;)
+
+class ProducerUnit : public Facility {
+	float per_day;
+	int cap;
+	int last_gather;
+
+public:
+	double gather(Process* ptr, int &over_cap)
+	{
+		double g = (per_day * (Time - last_gather))/(24*3600);
+		over_cap = g > cap ? g - cap : 0;
+		last_gather = Time;
+		return g;
+	}
+
+	ProducerUnit() : per_day(house_prod), cap(20), last_gather(Time) { ; }
+	ProducerUnit(int capacity, float prod = house_prod)
+	{
+		last_gather = Time;
+		per_day = prod;
+		cap = capacity;
+	}
+};
+
+vector<ProducerUnit*> section;
+auto top = section.begin();
 
 class Truck : public Process {
 	enum {
@@ -109,6 +138,7 @@ class Truck : public Process {
 					if (!households.Full() /*&& remaining > 0*/) {
 						//TODO: na jedno zastavenie mozno obsluzit viac domov 1,2-5 ?
 						//TODO: prirobit fabriky
+						//TODO: prechod na ProducerUnit
 						// And houses_n not cleared, compensate if ungathered houses_n
 
 						per_stop = 1 + Exponential(6);
@@ -168,6 +198,7 @@ class Truck : public Process {
 
 				Enter(landfill, 1);
 				unloadWait();
+				unloads(garbage);
 				garbage = 0;
 				Leave(landfill, 1);
 
@@ -210,7 +241,7 @@ public:
 		plan_houses = houses;
 	}
 
-	// TODO: Justify usage of this distributions
+	// TODO: Vyber spravne rozlozenia, mozno bude nutny experiment
 	void moveDepoWait() { Wait(move_depo + Exponential(move_depo/3)); }
 
 	void moveLandfillWait() { Wait(move_stor + Exponential(move_stor/3)); }
@@ -243,14 +274,16 @@ class Dispatcher : public Event {
 	enum {
 		new_window = 0,
 		work_shift,
+		no_shift,
+		rest_no_shift,
 		rest
 	} next_state;
 
 	class Truck* cars;
 	int day = 0;
 
+	// TODO: rozlisuj dni pre zber pondelok utorok... etc. + ich plany
 	void Behavior() {
-		//TODO: Prirob fabriky
 
 		switch (next_state) {
 		default:
@@ -272,11 +305,21 @@ class Dispatcher : public Event {
 			Activate(Time + 8 * 3600);
 			break;
 
+		case no_shift:
+
+			next_state = rest_no_shift;
+			Activate(Time + 8 * 3600);
+			break;
+
+		case rest_no_shift:
 		case rest:
 			day++;
 			next_state = work_shift;
 
-			if (day == 7) {
+			if (day >= 5 && day < 7) {
+				next_state = no_shift;
+
+			} else if (day == 7) {
 				day = 0;
 				next_state = new_window;
 			}
@@ -301,7 +344,7 @@ class Dispatcher Depo;
 
 
 // Spocitaj simulacne parametre
-// TODO: Rado, urobi spracovanie parametrov
+// TODO: Rado, prida ako parameter poced dni simulacie
 int initParams(int argc, char* argv[])
 {
 	int c;
@@ -413,7 +456,7 @@ int initParams(int argc, char* argv[])
 	int ppl_per_house = population/houses_n;
 
 // Garbage production
-	house_prod = (ppl_per_house*garbage_k*7)/(365.25); // Kg odpadu za tyzden na dom - priemer
+	house_prod = (ppl_per_house*garbage_k)/(365.25); // Kg odpadu za den na dom - priemer
 	fact_prod = industry_k/(365.25*factories_n); // Kg odpadu za den na fabriku
 
 // Distance delays in seconds
@@ -424,6 +467,11 @@ int initParams(int argc, char* argv[])
 	// sec Priemerna vzdialenost k domom pokial je v strede mesta sqrt(((a/2)^2*2^0.5)/pi) = r, plocha ohranicena stvocom za kruznicou a pred kruznicou s polomerom r je rovnaka //for 20 should give result 9.488
 	move_depo = TRUCK_MAX_SPEED/(sqrt(((plane_size / 4) * sqrt(2)) / 3.1418)); //depo is in the middle of square
 	move_stor = TRUCK_MAX_SPEED/20000; // sec ?? nejake dalsia priemerna vzidalenost podobnym sposobom
+
+	section.resize(houses_n);
+	for (auto &x : section) {
+		x = new ProducerUnit();
+	}
 
 	return EXIT_SUCCESS;
 }
@@ -449,17 +497,17 @@ int main(int argc, char* argv[]) {
 	// inicializace experimentu, čas bude 0..2 tyzdne...
 	Init(0,21*24*3600);
 
-	//initParams(argc, argv);
 	// Release the hounds !
 	Depo.Activate();
 	// Who let the dogs out ?
 	// Optimize some function of efficiency
 	Run();
 
-	// Vypis statistikyk
+	// Vypis statistik
 	fieldHours.Output();
 	gathH.Output();
 	uncleaned.Output();
+	unloads.Output();
 	return 0;
 }
 
