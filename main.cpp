@@ -74,11 +74,10 @@ class Store factories("Fabriky", factories_n);
 
 //TODO: add suitable statistics
 Histogram gathH("Per day vybrane popelnice", 0, 100, 25); //Garbage gathered per day
-TStat uncleaned("Per week neupratane domy");
+Stat uncleaned("Per week neupratane domy");
 Histogram fieldHours("Pracovne hodiny vodicov", 0, 0.5, 20); //Find out utilisation of trucks
 Stat dist("Najazdene vzdialenosti");       //Accumulate distance travelled by trucks
 Stat unloads("Vahy vysypok na skladkach");
-
 // Class describing act of collecting garbage from houses_n
 // Code mode profi ;)
 
@@ -88,9 +87,9 @@ class ProducerUnit : public Facility {
 	int last_gather;
 
 public:
-	double gather(Process* ptr, int &over_cap)
+	float gather(Process* ptr, float &over_cap)
 	{
-		double g = (per_day * (Time - last_gather))/(24*3600);
+		float g = (per_day * (Time - last_gather))/(24*3600);
 		over_cap = g > cap ? g - cap : 0;
 		last_gather = Time;
 		return g;
@@ -151,12 +150,20 @@ class Truck : public Process {
 
 						serviceWait(x);
 
+						for (int z = 0; z <= x ; z++) {
+							auto H = section.at(households.Used()-1-z);
+							float hoarding;
+							Seize(*H);
+							garbage += H->gather(this, hoarding);
+							overprod += hoarding;
+							Release(*H);
+						}
+
 						/*if (missedHH.Capacity() > 0 ) {
 							// Collect extra from last week
 							Enter(missedHH, 1);
 							garbage += Exponential(house_prod);
 						}*/
-						garbage += Exponential(x*house_prod);
 
 						per_day += x;
 
@@ -220,8 +227,9 @@ class Truck : public Process {
 	};
 
 public:
-	int garbage;
-	int odometer;
+	float garbage;
+	float odometer;
+	float overprod;
 
 	Truck(int cap = TRUCK_CAP)
 	{
@@ -274,6 +282,7 @@ class Dispatcher : public Event {
 	enum {
 		new_window = 0,
 		work_shift,
+		recall,
 		no_shift,
 		rest_no_shift,
 		rest
@@ -299,10 +308,10 @@ class Dispatcher : public Event {
 				// Modulate dispatch time
 				cars[x].Activate(Time + Exponential(move_depo));
 
-			next_state = rest;
-			work = Work();
+			next_state = recall;
+			work = true;
 			day_start = Time;
-			Activate(Time + 8 * 3600);
+			Activate(Time + 7 * 3600);
 			break;
 
 		case no_shift:
@@ -311,8 +320,13 @@ class Dispatcher : public Event {
 			Activate(Time + 8 * 3600);
 			break;
 
-		case rest_no_shift:
+		case recall:
+
+			next_state = rest;
+			Activate(Time + 3600);
+
 		case rest:
+		case rest_no_shift:
 			day++;
 			next_state = work_shift;
 
@@ -323,8 +337,8 @@ class Dispatcher : public Event {
 				day = 0;
 				next_state = new_window;
 			}
-			work = Work();
 
+			work = false;
 			Activate(Time + 16 * 3600);
 		}
 	}
@@ -340,7 +354,6 @@ public:
 	}
 };
 
-class Dispatcher Depo;
 
 
 // Spocitaj simulacne parametre
@@ -468,16 +481,31 @@ int initParams(int argc, char* argv[])
 	move_depo = TRUCK_MAX_SPEED/(sqrt(((plane_size / 4) * sqrt(2)) / 3.1418)); //depo is in the middle of square
 	move_stor = TRUCK_MAX_SPEED/20000; // sec ?? nejake dalsia priemerna vzidalenost podobnym sposobom
 
-	section.resize(houses_n);
-	for (auto &x : section) {
-		x = new ProducerUnit();
-	}
+
 
 	return EXIT_SUCCESS;
 }
 
 void clean_stats()
 {
+	fieldHours.Clear();
+	gathH.Clear();
+	uncleaned.Clear();
+	unloads.Clear();
+
+	landfill.Clear();
+	households.Clear();
+
+	gathH.Init(0, 100, 25); //Garbage gathered per day
+	fieldHours.Init(0, 0.5, 20); //Find out utilisation of trucks
+
+	for (auto &x : section) {
+		delete x;
+	}
+	section.resize(houses_n);
+	for (auto &x : section) {
+		x = new ProducerUnit();
+	}
 
 	return;
 }
@@ -491,19 +519,45 @@ int main(int argc, char* argv[]) {
 	landfill.SetCapacity(3);
 	households.SetCapacity(houses_n);
 
+	int min = 1;
+	int max = 50;
+	class Dispatcher* depo;
+
 	Print("Brno-mesto -- SHO zvoz odpadu SIMLIB/C++\n");
 	SetOutput("zvoz.out");
 
 	// inicializace experimentu, čas bude 0..2 tyzdne...
-	Init(0,21*24*3600);
+	int x = 1;
 
-	// Release the hounds !
-	Depo.Activate();
-	// Who let the dogs out ?
-	// Optimize some function of efficiency
-	Run();
+	Print("Bisect trucks from %d to %d\n", min, max);
+	Print("'Run num'\t'trucks'\t'uncleaned houses'\n");
+
+	do {
+		Init(0, 21 * 24 * 3600);
+		clean_stats();
+
+		truck_n = (min+max) >> 1;
+		// Release the hounds !
+		(depo = new Dispatcher(truck_n))->Activate();
+		// Who let the dogs out ?
+		// Optimize some function of efficiency
+		Run();
+
+
+		delete depo;
+
+		Print("%d\t%d\t%f\n", x++, truck_n, uncleaned.MeanValue());
+
+		if (uncleaned.Max() > 100) {
+			min = truck_n;
+		} else {
+			max = truck_n;
+		}
+
+	} while (max-min > 1);
 
 	// Vypis statistik
+
 	fieldHours.Output();
 	gathH.Output();
 	uncleaned.Output();
