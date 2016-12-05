@@ -9,25 +9,15 @@
 #include <string>
 #include <simlib.h>
 #include <cmath>
-#include <getopt.h>
-#include <unistd.h>
-#include <cstdlib>
 
 #include <vector>
 #include <map>
 
+#include "utils.h"
+
 using namespace std;
 
 // TODO: rado... srsly ?
-const string HELP_MESSAGE = "help, no_argument, 0, h\n"
-			"output-file, required_argument, 0, f\n"
-			"city-size, required_argument, 0, c\n"
-			"person-production, required_argument, 0, p\n"
-			"industry-production, required_argument, 0, i\n"
-			"houses_n, required_argument, 0, u\n"
-			"factories_n, required_argument, 0, t\n"
-			"population, required_argument, 0, l\n";
-
 // Simulation inputs //defaults
 double plane_size = 230.22; //km squared
 int population = 377028; //people
@@ -55,8 +45,12 @@ const int TRUCK_MAX_SPEED = 90/3.6; //Meters/sec
 
 // Constants form statistics
 
-// Variables
-int truck_n = 17;
+// Simulation control global variables, defaults
+int truck_min = 1;
+int truck_max = 50;
+int truck_n = (truck_max + truck_min) >> 1;
+int optimize = false;
+int days = 21;
 
 string outputfile;
 
@@ -77,11 +71,11 @@ Histogram gathH("Per day vybrane popelnice", 0, 100, 25); //Garbage gathered per
 Stat uncleaned("Per week neupratane domy");
 Histogram fieldHours("Pracovne hodiny vodicov", 0, 0.5, 20); //Find out utilisation of trucks
 Stat dist("Najazdene vzdialenosti");       //Accumulate distance travelled by trucks
-Stat unloads("Vahy vysypok na skladkach");
+Histogram unloads("Vahy vysypok na skladkach", 0, (TRUCK_CAP*1.2)/20 , 20);
 // Class describing act of collecting garbage from houses_n
 // Code mode profi ;)
 
-class ProducerUnit : public Facility {
+class ProducerUnit /* : public Facility*/ {
 	float per_day;
 	int cap;
 	int last_gather;
@@ -153,10 +147,10 @@ class Truck : public Process {
 						for (int z = 0; z <= x ; z++) {
 							auto H = section.at(households.Used()-1-z);
 							float hoarding;
-							Seize(*H);
+							//Seize(*H);
 							garbage += H->gather(this, hoarding);
 							overprod += hoarding;
-							Release(*H);
+							//Release(*H);
 						}
 
 						/*if (missedHH.Capacity() > 0 ) {
@@ -354,138 +348,6 @@ public:
 	}
 };
 
-
-
-// Spocitaj simulacne parametre
-// TODO: Rado, prida ako parameter poced dni simulacie
-int initParams(int argc, char* argv[])
-{
-	int c;
-	//int digit_optind = 0;
-	int arg_ok = 0;
-
-	static struct option long_options[] = {
-			{"help", no_argument, 0, 'h'},
-			{"output-file", required_argument, 0, 'f'},
-			{"city-size", required_argument, 0, 'c'},
-			{"person-production", required_argument, 0, 'p'},
-			{"industry-production", required_argument, 0, 'i'},
-			{"houses_n", required_argument, 0, 'u'},
-			{"factories_n", required_argument, 0, 't'},
-			{"population", required_argument, 0, 'l'},
-			{0,0,0,0}
-	};
-
-	while(1) {
-		//int this_option_optind = optind ? optind : 1;
-		int option_index = 0;
-		string tmp;
-		size_t idx = 0;
-
-		c = getopt_long(argc, argv, "hf:c:p:i:u:t:l:", long_options, &option_index);
-		if (c == -1) break;
-		switch (c) {
-		//TODO: fill cases
-			case 'h':
-				cout << HELP_MESSAGE;
-				break;
-			case 'f':
-				outputfile = optarg;
-                SetOutput(outputfile.c_str());
-				break;
-			case 'c':
-				tmp = optarg;
-				try {
-					plane_size = stoll(tmp, &idx);
-					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
-				} catch (const std::invalid_argument& ia) {
-					Print("Error, city-size value is invalid!\n");
-					return EXIT_FAILURE;
-				}
-				break;
-			case 'p':
-				tmp = optarg;
-				try {
-					garbage_k = stod(tmp, &idx);
-					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
-				} catch (const std::invalid_argument& ia) {
-					Print("Error, person-production value is invalid!\n");
-					return EXIT_FAILURE;
-				}
-				break;
-			case 'i':
-				tmp = optarg;
-				try {
-					industry_k = stod(tmp, &idx);
-					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
-				} catch (const std::invalid_argument& ia) {
-					Print("Error, industry-production value is invalid!\n");
-					return EXIT_FAILURE;
-				}
-				break;
-			case 'u':
-				tmp = optarg;
-				try {
-					houses_n = stoll(tmp, &idx);
-					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
-				} catch (const std::invalid_argument& ia) {
-					Print("Error, houses_n value is invalid!\n");
-					return EXIT_FAILURE;
-				}
-				break;
-			case 't':
-				tmp = optarg;
-				try {
-					factories_n = stoll(tmp, &idx);
-					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
-				} catch (const std::invalid_argument& ia) {
-					Print("Error, factories_n value is invalid!\n");
-					return EXIT_FAILURE;
-				}
-				break;
-			case 'l':
-				tmp = optarg;
-				try {
-					population = stoll(tmp, &idx);
-					if (tmp[idx] != '\0') throw invalid_argument("Bad value");
-				} catch (const std::invalid_argument& ia) {
-					Print("Error, population value is invalid!\n");
-					return EXIT_FAILURE;
-				}
-				break;
-			default:
-				Print("?? getopt returned character code 0%o ??\n", c);
-		}
-	}
-
-	if (optind < argc) {
-		Print("non-option ARGV-elements: ");
-		while (optind < argc)
-			Print("%s ", argv[optind++]);
-		Print("\n");
-	}
-
-	int ds_houses = sqrt((plane_size*1000000)/houses_n); // metre Vzdialenost medzi domami
-	int ppl_per_house = population/houses_n;
-
-// Garbage production
-	house_prod = (ppl_per_house*garbage_k)/(365.25); // Kg odpadu za den na dom - priemer
-	fact_prod = industry_k/(365.25*factories_n); // Kg odpadu za den na fabriku
-
-// Distance delays in seconds
-	//TODO: Over statisticke vzidalenosti, predpokldame stvorcovu siet, mozme si to vobec dovolit ?
-	//FIXME: Vypocet rozlozenia vzdialenosti
-	move_collect = TRUCK_AVG_SPEED/ds_houses; // sec plati priemer pri optimalnom presune !
-
-	// sec Priemerna vzdialenost k domom pokial je v strede mesta sqrt(((a/2)^2*2^0.5)/pi) = r, plocha ohranicena stvocom za kruznicou a pred kruznicou s polomerom r je rovnaka //for 20 should give result 9.488
-	move_depo = TRUCK_MAX_SPEED/(sqrt(((plane_size / 4) * sqrt(2)) / 3.1418)); //depo is in the middle of square
-	move_stor = TRUCK_MAX_SPEED/20000; // sec ?? nejake dalsia priemerna vzidalenost podobnym sposobom
-
-
-
-	return EXIT_SUCCESS;
-}
-
 void clean_stats()
 {
 	fieldHours.Clear();
@@ -498,6 +360,7 @@ void clean_stats()
 
 	gathH.Init(0, 100, 25); //Garbage gathered per day
 	fieldHours.Init(0, 0.5, 20); //Find out utilisation of trucks
+	unloads.Init(0, (TRUCK_CAP*1.2)/20 , 20);
 
 	for (auto &x : section) {
 		delete x;
@@ -519,8 +382,6 @@ int main(int argc, char* argv[]) {
 	landfill.SetCapacity(3);
 	households.SetCapacity(houses_n);
 
-	int min = 1;
-	int max = 50;
 	class Dispatcher* depo;
 
 	Print("Brno-mesto -- SHO zvoz odpadu SIMLIB/C++\n");
@@ -529,14 +390,19 @@ int main(int argc, char* argv[]) {
 	// inicializace experimentu, čas bude 0..2 tyzdne...
 	int x = 1;
 
-	Print("Bisect trucks from %d to %d\n", min, max);
+	Print("Bisect trucks from %d to %d\n", truck_min, truck_max);
 	Print("'Run num'\t'trucks'\t'uncleaned houses'\n");
 
+	// Since i dont know of a way to simulate other parameters than time
+	// I run multiple simulation to optimize parametes
 	do {
-		Init(0, 21 * 24 * 3600);
+		Init(0, days * 24 * 3600);
 		clean_stats();
 
-		truck_n = (min+max) >> 1;
+		/*
+		if (optimize)
+			truck_n = (truck_min+truck_max) >> 1;
+		 */
 		// Release the hounds !
 		(depo = new Dispatcher(truck_n))->Activate();
 		// Who let the dogs out ?
@@ -549,12 +415,12 @@ int main(int argc, char* argv[]) {
 		Print("%d\t%d\t%f\n", x++, truck_n, uncleaned.MeanValue());
 
 		if (uncleaned.Max() > 100) {
-			min = truck_n;
+			truck_min = truck_n;
 		} else {
-			max = truck_n;
+			truck_max = truck_n;
 		}
 
-	} while (max-min > 1);
+	} while (truck_max-truck_min > 1 && optimize);
 
 	// Vypis statistik
 

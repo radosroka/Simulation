@@ -26,7 +26,7 @@ Nasledúje výčet možných entit a ich vlastností figurujúcich v modele
 Kapacita
 Naložený odpad
 Stredná hodnota medzi poruchami
-Doba nákladky pre rôžne max kapacity eg 30 pre < 70 litrov odpadu etc.
+Doba nákladky pre rôžne truck_max kapacity eg 30 pre < 70 litrov odpadu etc.
 Plán zberu
 Pozícia (uzol)
 #### Zberný dvor - generátor
