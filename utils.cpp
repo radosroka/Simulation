@@ -34,13 +34,14 @@ int initParams(int argc, char* argv[])
 			{"population", required_argument, 0, 'l'},
 
 			{"optimize", no_argument, &optimize, 1},
-			{"trucks-n", required_argument, 0, 0},
-			{"trucks-truck_min", required_argument, 0, 1},
-			{"trucks-truck_max", required_argument, 0, 2},
-			{"days", required_argument, 0, 3},
+			{"trucks-n", required_argument, 0, 1},
+			{"trucks-min", required_argument, 0, 2},
+			{"trucks-max", required_argument, 0, 3},
+			{"days", required_argument, 0, 4},
 			{0,0,0,0}
 	};
 
+	//TODO fix param loading
 	while(1) {
 		//int this_option_optind = optind ? optind : 1;
 		int option_index = 0;
@@ -52,6 +53,9 @@ int initParams(int argc, char* argv[])
 		switch (c) {
 			//TODO: fill cases
 		case 0:
+			break;
+		case 1:
+			tmp = optarg;
 			try {
 				truck_n = stoll(tmp, &idx);
 				if (tmp[idx] != '\0') throw invalid_argument("Bad value");
@@ -60,7 +64,8 @@ int initParams(int argc, char* argv[])
 				return EXIT_FAILURE;
 			}
 			break;
-		case 1:
+		case 2:
+			tmp = optarg;
 			try {
 				truck_min = stoll(tmp, &idx);
 				if (tmp[idx] != '\0') throw invalid_argument("Bad value");
@@ -69,7 +74,8 @@ int initParams(int argc, char* argv[])
 				return EXIT_FAILURE;
 			}
 			break;
-		case 2:
+		case 3:
+			tmp = optarg;
 			try {
 				truck_max = stoll(tmp, &idx);
 				if (tmp[idx] != '\0') throw invalid_argument("Bad value");
@@ -78,7 +84,8 @@ int initParams(int argc, char* argv[])
 				return EXIT_FAILURE;
 			}
 			break;
-		case 3:
+		case 4:
+			tmp = optarg;
 			try {
 				days = stoll(tmp, &idx);
 				if (tmp[idx] != '\0') throw invalid_argument("Bad value");

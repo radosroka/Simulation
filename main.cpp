@@ -48,7 +48,7 @@ const int TRUCK_MAX_SPEED = 90/3.6; //Meters/sec
 // Simulation control global variables, defaults
 int truck_min = 1;
 int truck_max = 50;
-int truck_n = (truck_max + truck_min) >> 1;
+int truck_n = 0;
 int optimize = false;
 int days = 21;
 
@@ -399,10 +399,10 @@ int main(int argc, char* argv[]) {
 		Init(0, days * 24 * 3600);
 		clean_stats();
 
-		/*
-		if (optimize)
-			truck_n = (truck_min+truck_max) >> 1;
-		 */
+		//Init if not set
+		if (truck_n == 0)
+			truck_n = (truck_min + truck_max) >> 1;
+
 		// Release the hounds !
 		(depo = new Dispatcher(truck_n))->Activate();
 		// Who let the dogs out ?
@@ -419,6 +419,7 @@ int main(int argc, char* argv[]) {
 		} else {
 			truck_max = truck_n;
 		}
+		truck_n = (truck_min + truck_max) >> 1;
 
 	} while (truck_max-truck_min > 1 && optimize);
 
