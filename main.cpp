@@ -23,7 +23,7 @@ double plane_size = 230.22; //km squared
 int population = 377028; //people
 double garbage_k = 280; //Kg garbage per people/year
 double industry_k = 3635845000; //Kg per year total
-int houses_n = 174162; //Spread evenly across the city
+int houses_n = 51797; //Spread evenly across the city
 int factories_n = 10; //Spread evenly across the city
 
 // Calculated from inputs
@@ -39,9 +39,12 @@ int move_stor; //sec Distance to landfill
 // Truck default settings
 const int TRUCK_CAP = 3000; // Kg nosnost
 const int UNLOAD = 600; // Time to unload the car
-const int SERVICE = 30; // Time to load a trash can
+const int SERVICE = 60; // Time to load a trash can
 const int TRUCK_AVG_SPEED = 10; //Meters/sec
-const int TRUCK_MAX_SPEED = 90/3.6; //Meters/sec
+const int TRUCK_MAX_SPEED = 35/3.6; //Meters/sec
+
+const unsigned SHIFT = 7*3600;
+const unsigned RECALL = 8*3600 - SHIFT;
 
 // Constants form statistics
 
@@ -105,17 +108,18 @@ class Truck : public Process {
 	enum {
 		depo,
 		collecting,
-		storage
+		storage,
+		begin
 	} state;
-
+	//parameters
 	int remaining;
 	int plan_houses;
-	int remain_days;
-	int plan_days;
-
+	//int remain_days;
+	//int plan_days;
+	//stats
 	int capacity;
 	int per_day;
-
+	//control
 	int per_stop;
 	int x;
 
@@ -124,22 +128,26 @@ class Truck : public Process {
 		while(1) {
 			switch (state) {
 
+			case begin:
+			break;
+
 			case collecting:
 
 				if (work) {
 					// If it is daytime
-					if (!households.Full() /*&& remaining > 0*/) {
+					if (!households.Full() && remaining > 0) {
 						//TODO: na jedno zastavenie mozno obsluzit viac domov 1,2-5 ?
 						//TODO: prirobit fabriky
 						//TODO: prechod na ProducerUnit
 						// And houses_n not cleared, compensate if ungathered houses_n
 
-						per_stop = 1 + Exponential(6);
+						per_stop = 1 + Exponential(4);
 						for (x = 0; x < per_stop ; x++) {
-							if (households.Full() /*or remaining < x*/) {
+							if (households.Full() or remaining ==0) {
 								break;
 							}
 							Enter(households, 1);
+							remaining--;
 						}
 
 						serviceWait(x);
@@ -152,12 +160,6 @@ class Truck : public Process {
 							overprod += hoarding;
 							//Release(*H);
 						}
-
-						/*if (missedHH.Capacity() > 0 ) {
-							// Collect extra from last week
-							Enter(missedHH, 1);
-							garbage += Exponential(house_prod);
-						}*/
 
 						per_day += x;
 
@@ -195,6 +197,7 @@ class Truck : public Process {
 
 			case storage:
 
+				//Coutns for way to garbage and back
 				moveLandfillWait();
 
 				Enter(landfill, 1);
@@ -237,22 +240,22 @@ public:
 		remaining = plan_houses;
 	}
 
-	void setPlan(int houses, int interval)
+	void setPlan(int houses)//, int interval)
 	{
-		plan_days = interval;
 		plan_houses = houses;
+		newRun();
 	}
 
 	// TODO: Vyber spravne rozlozenia, mozno bude nutny experiment
-	void moveDepoWait() { Wait(move_depo + Exponential(move_depo/3)); }
+	void moveDepoWait() { Wait( fabs(Normal(move_depo, move_depo/5)) ); }
 
-	void moveLandfillWait() { Wait(move_stor + Exponential(move_stor/3)); }
+	void moveLandfillWait() { Wait( fabs(Normal(move_stor, move_stor/5)) );  }
 
-	void moveCollectWait() { Wait(move_collect+Exponential(move_collect)); }
+	void moveCollectWait() { Wait( fabs(Normal(move_collect, move_collect/5)) ); }
 
-	void serviceWait(int x) { Wait(SERVICE + x*SERVICE*Random() ); }
+	void serviceWait(int x) { Wait(Uniform(0.7*SERVICE, 1.3*SERVICE)); }
 
-	void unloadWait() { Wait(Exponential(UNLOAD)); }
+	void unloadWait() { Wait(Uniform(0.7*UNLOAD, 1.3*UNLOAD)); }
 
 };
 
@@ -285,7 +288,12 @@ class Dispatcher : public Event {
 	class Truck* cars;
 	int day = 0;
 
-	// TODO: rozlisuj dni pre zber pondelok utorok... etc. + ich plany
+	int planned;
+	int tmp;
+
+	int x;
+	// SUGGEST: rozlisuj dni pre zber pondelok utorok... etc. + ich plany
+	// TODO: generuj pocty domov na pozbieranie pre auta na zaciatku smeny
 	void Behavior() {
 
 		switch (next_state) {
@@ -298,14 +306,33 @@ class Dispatcher : public Event {
 
 		case work_shift:
 
-			for (int x = 0; x < truck_n; x++)
+			planned = 0;
+			for (x = 0; x < truck_n -1 ; x++) {
 				// Modulate dispatch time
+				// Pick a track
+				tmp = Normal(518,180);
+				// Trim value
+				tmp = tmp < 0 ? 0 : tmp > 1200 ? 1200 : tmp;
+
+				// Handle if too much planned small amount of cars
+				if (planned + tmp > houses_n) {
+					break;
+				}
+					planned += tmp;
+				cars[x].setPlan(tmp);
 				cars[x].Activate(Time + Exponential(move_depo));
+			}
+			// Plan rest to one truck
+			tmp = houses_n - planned;
+			cars[x].setPlan(tmp);
+			cars[x].Activate(Time + Exponential(move_depo));
+
 
 			next_state = recall;
 			work = true;
 			day_start = Time;
-			Activate(Time + 7 * 3600);
+			// Call in trucks an hour before end of shift
+			Activate(Time + SHIFT);
 			break;
 
 		case no_shift:
@@ -317,7 +344,7 @@ class Dispatcher : public Event {
 		case recall:
 
 			next_state = rest;
-			Activate(Time + 3600);
+			Activate(Time + RECALL);
 
 		case rest:
 		case rest_no_shift:
@@ -400,8 +427,11 @@ int main(int argc, char* argv[]) {
 		clean_stats();
 
 		//Init if not set
-		if (truck_n == 0)
+		if (truck_n == 0 && optimize)
 			truck_n = (truck_min + truck_max) >> 1;
+		else if (truck_n == 0) {
+			truck_n = 27;
+		}
 
 		// Release the hounds !
 		(depo = new Dispatcher(truck_n))->Activate();
